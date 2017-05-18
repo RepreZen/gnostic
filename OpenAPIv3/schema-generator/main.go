@@ -217,7 +217,7 @@ func parsePatternedFields(input string, schemaObject *SchemaObject) {
 			fieldName := strings.Trim(stripLink(parts[0]), " ")
 			fieldName = removeMarkdownLinks(fieldName)
 			if fieldName == "HTTP Status Code" {
-				fieldName = "^([0-9]{3})$"
+				fieldName = "^([0-9X]{3})$"
 			}
 			if fieldName != "Field Pattern" && fieldName != "---" {
 				typeName := parts[1]
@@ -479,6 +479,8 @@ func buildSchemaWithModel(modelObject *SchemaObject) (schema *jsonschema.Schema)
 		schema.Required = &arrayCopy
 	}
 
+	schema.AdditionalProperties = jsonschema.NewSchemaOrBooleanWithBoolean(false);
+
 	schema.Description = stringptr(modelObject.Description)
 
 	// handle fixed fields
@@ -517,7 +519,20 @@ func buildSchemaWithModel(modelObject *SchemaObject) (schema *jsonschema.Schema)
 			if schemaField == nil {
 				// create and add the schema field
 				schemaField = &jsonschema.Schema{}
-				namedSchema := &jsonschema.NamedSchema{Name: modelField.Name, Value: schemaField}
+				// Component names should match "^[a-zA-Z0-9\.\-_]+$"
+				// See https://github.com/OAI/OpenAPI-Specification/blob/OpenAPI.next/versions/3.0.md#componentsObject
+				nameRegex := "^[a-zA-Z0-9\\\\.\\\\-_]+$"
+				if modelObject.Name == "Scopes Object" {
+					nameRegex = "^"
+				}
+				propertyName := strings.Replace(modelField.Name, "{name}", nameRegex, -1)
+				//  The field name MUST begin with a slash, see https://github.com/OAI/OpenAPI-Specification/blob/OpenAPI.next/versions/3.0.md#paths-object
+				// JSON Schema for OpenAPI v2 uses "^/" as regex for paths, see https://github.com/OAI/OpenAPI-Specification/blob/OpenAPI.next/schemas/v2.0/schema.json#L173
+				propertyName = strings.Replace(propertyName, "/{path}", "^/", -1)
+				// Replace human-friendly (and regex-confusing) description with a blank pattern
+				propertyName = strings.Replace(propertyName, "{expression}", "^", -1)
+				propertyName = strings.Replace(propertyName, "{property}", "^", -1)
+				namedSchema := &jsonschema.NamedSchema{Name: propertyName, Value: schemaField}
 				newNamedSchemas = append(newNamedSchemas, namedSchema)
 			}
 			updateSchemaFieldWithModelField(schemaField, &modelField)
@@ -670,20 +685,17 @@ func main() {
 		objectSchema := &jsonschema.Schema{}
 		objectSchema.Type = jsonschema.NewStringOrStringArrayWithString("object")
 		objectSchema.AdditionalProperties = jsonschema.NewSchemaOrBooleanWithBoolean(true)
-		objectSchema.AdditionalItems = jsonschema.NewSchemaOrBooleanWithBoolean(true)
 		*schema.Definitions = append(*schema.Definitions, jsonschema.NewNamedSchema("object", objectSchema))
 	}
 	if true {
 		objectSchema := &jsonschema.Schema{}
 		objectSchema.AdditionalProperties = jsonschema.NewSchemaOrBooleanWithBoolean(true)
-		objectSchema.AdditionalItems = jsonschema.NewSchemaOrBooleanWithBoolean(true)
 		*schema.Definitions = append(*schema.Definitions, jsonschema.NewNamedSchema("any", objectSchema))
 	}
 	if true {
 		objectSchema := &jsonschema.Schema{}
 		objectSchema.Type = jsonschema.NewStringOrStringArrayWithString("object")
 		objectSchema.AdditionalProperties = jsonschema.NewSchemaOrBooleanWithBoolean(true)
-		objectSchema.AdditionalItems = jsonschema.NewSchemaOrBooleanWithBoolean(true)
 		*schema.Definitions = append(*schema.Definitions, jsonschema.NewNamedSchema("expression", objectSchema))
 	}
 
@@ -779,7 +791,7 @@ func main() {
 	contentObject := schema.DefinitionWithName("content")
 	pairs := make([]*jsonschema.NamedSchema, 0)
 	contentObject.PatternProperties = &pairs
-	namedSchema := &jsonschema.NamedSchema{Name: "{media-type}", Value: &jsonschema.Schema{Ref: stringptr("#/definitions/mediaType")}}
+	namedSchema := &jsonschema.NamedSchema{Name: "^", Value: &jsonschema.Schema{Ref: stringptr("#/definitions/mediaType")}}
 	*(contentObject.PatternProperties) = append(*(contentObject.PatternProperties), namedSchema)
 
 	// write the updated schema

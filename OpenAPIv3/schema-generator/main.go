@@ -642,7 +642,7 @@ func main() {
 
 	// manually set a few fields
 	schema.Title = stringptr("A JSON Schema for OpenAPI 3.0.")
-	schema.ID = stringptr("http://openapis.org/v3/schema.json#")
+	schema.Id = stringptr("http://openapis.org/v3/schema.json#")
 	schema.Schema = stringptr("http://json-schema.org/draft-04/schema#")
 
 	// loop over all models and create the corresponding schema objects
@@ -814,6 +814,7 @@ func main() {
 		&jsonschema.Schema{AnyOf: &anyOf})
 	schemaObject.AddProperty("properties", &jsonschema.Schema{
 		Type: jsonschema.NewStringOrStringArrayWithString("object"),
+		Title: stringptr("property"),
 		AdditionalProperties: jsonschema.NewSchemaOrBooleanWithSchema(
 			&jsonschema.Schema{Ref: stringptr("#/definitions/schemaOrReference")})})
 
